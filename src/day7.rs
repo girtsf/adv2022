@@ -98,12 +98,12 @@ fn simulate_commands(commands: &[&str]) -> Dir {
             // Otherwise, it must be "cd foo".
             _ => {
                 assert!(first_line.starts_with("cd "));
-                let path: String = first_line.chars().skip(3).to_owned().collect();
+                let path: String = first_line.chars().skip(3).collect();
                 let new_dir = {
                     let mut cur_dir = dir_stack.last().unwrap().borrow_mut();
                     cur_dir.dirs.entry(path).or_default().clone()
                 };
-                dir_stack.push(new_dir.clone());
+                dir_stack.push(new_dir);
             }
         }
     }
