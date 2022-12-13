@@ -1,18 +1,26 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, iter::repeat};
 
 mod lib;
 
-#[derive(Debug, Default, Eq, PartialEq, Hash, Clone)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 struct Pos(isize, isize);
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct State {
-    head: Pos,
-    tail: Pos,
+    // Part 1: [0] is Head, [1] is tail.
+    // Part 2: [0] is Head, [1] is 1, etc.
+    rope: Vec<Pos>,
     tail_visited: HashSet<Pos>,
 }
 
 impl State {
+    fn new(segments: usize) -> State {
+        State {
+            rope: repeat(Pos(0, 0)).take(segments).collect(),
+            tail_visited: HashSet::default(),
+        }
+    }
+
     fn parse_and_do_move(&mut self, line: &str) {
         let (dir, count) = line.split_once(" ").unwrap();
         self.do_move(dir.chars().next().unwrap(), count.parse().unwrap());
@@ -21,9 +29,11 @@ impl State {
     fn do_move(&mut self, dir: char, count: isize) {
         for _ in 0..count {
             self.move_head(dir);
-            self.move_tail();
+            for i in 1..self.rope.len() {
+                self.move_tail(i);
+            }
+            self.tail_visited.insert(self.rope.last().unwrap().clone());
         }
-        dbg!(dir, count);
     }
 
     fn move_head(&mut self, dir: char) {
@@ -34,25 +44,30 @@ impl State {
             'D' => (1, 0),
             _ => panic!("invalid dir"),
         };
-        self.head.0 += dy;
-        self.head.1 += dx;
+        self.rope[0].0 += dy;
+        self.rope[0].1 += dx;
     }
 
-    fn move_tail(&mut self) {
-        let dy = self.head.0 - self.tail.0;
-        let dx = self.head.1 - self.tail.1;
+    fn move_tail(&mut self, i: usize) {
+        let dy = self.rope[i - 1].0 - self.rope[i].0;
+        let dx = self.rope[i - 1].1 - self.rope[i].1;
         if dy.abs() > 1 || dx.abs() > 1 {
-            self.tail.0 += dy.signum();
-            self.tail.1 += dx.signum();
+            self.rope[i].0 += dy.signum();
+            self.rope[i].1 += dx.signum();
         }
-        self.tail_visited.insert(self.tail.clone());
+    }
+
+    fn run(input: &str, segments: usize) -> usize {
+        let mut state = Self::new(segments);
+        input.lines().for_each(|line| state.parse_and_do_move(line));
+        state.tail_visited.len()
     }
 }
 
 fn main() {
     let input = lib::read_input();
-    let mut state = State::default();
-    input.lines().for_each(|line| state.parse_and_do_move(line));
-    dbg!(&state);
-    dbg!(state.tail_visited.len());
+    // Part 1:
+    dbg!(State::run(&input, 2));
+    // Part 2:
+    dbg!(State::run(&input, 10));
 }
