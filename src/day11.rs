@@ -8,18 +8,27 @@ struct Monkey {
     items: VecDeque<usize>,
     // new = fn(old)
     operation: MonkeyFn,
-    // to_monkey = fn(value)
-    test: MonkeyFn,
+    divisor: usize,
+    monkey_if_true: usize,
+    monkey_if_false: usize,
 
     inspect_count: usize,
 }
 
 impl Monkey {
-    fn new(items: impl IntoIterator<Item = usize>, operation: MonkeyFn, test: MonkeyFn) -> Monkey {
+    fn new(
+        items: impl IntoIterator<Item = usize>,
+        operation: MonkeyFn,
+        divisor: usize,
+        monkey_if_true: usize,
+        monkey_if_false: usize,
+    ) -> Monkey {
         Monkey {
             items: VecDeque::from_iter(items),
             operation,
-            test,
+            divisor,
+            monkey_if_true,
+            monkey_if_false,
             inspect_count: 0,
         }
     }
@@ -27,6 +36,7 @@ impl Monkey {
 
 struct State {
     monkeys: Vec<Monkey>,
+    divisor_product: usize,
 }
 
 impl State {
@@ -38,46 +48,34 @@ impl State {
             //   Test: divisible by 23
             //     If true: throw to monkey 2
             //     If false: throw to monkey 3
-            Monkey::new(
-                [79, 98],
-                Box::new(|old| old * 19),
-                Box::new(|value| if value % 23 == 0 { 2 } else { 3 }),
-            ),
+            Monkey::new([79, 98], Box::new(|old| old * 19), 23, 2, 3),
             // Monkey 1:
             //   Starting items: 54, 65, 75, 74
             //   Operation: new = old + 6
             //   Test: divisible by 19
             //     If true: throw to monkey 2
             //     If false: throw to monkey 0
-            Monkey::new(
-                [54, 65, 75, 74],
-                Box::new(|old| old + 6),
-                Box::new(|value| if value % 19 == 0 { 2 } else { 0 }),
-            ),
+            Monkey::new([54, 65, 75, 74], Box::new(|old| old + 6), 19, 2, 0),
             // Monkey 2:
             //   Starting items: 79, 60, 97
             //   Operation: new = old * old
             //   Test: divisible by 13
             //     If true: throw to monkey 1
             //     If false: throw to monkey 3
-            Monkey::new(
-                [79, 60, 97],
-                Box::new(|old| old * old),
-                Box::new(|value| if value % 13 == 0 { 1 } else { 3 }),
-            ),
+            Monkey::new([79, 60, 97], Box::new(|old| old * old), 13, 1, 3),
             // Monkey 3:
             //   Starting items: 74
             //   Operation: new = old + 3
             //   Test: divisible by 17
             //     If true: throw to monkey 0
             //     If false: throw to monkey 1
-            Monkey::new(
-                [74],
-                Box::new(|old| old + 3),
-                Box::new(|value| if value % 17 == 0 { 0 } else { 1 }),
-            ),
+            Monkey::new([74], Box::new(|old| old + 3), 17, 0, 1),
         ];
-        State { monkeys }
+        let divisor_product = monkeys.iter().map(|m| m.divisor).product();
+        State {
+            monkeys,
+            divisor_product,
+        }
     }
 
     fn build_input() -> State {
@@ -88,44 +86,28 @@ impl State {
             //   Test: divisible by 3
             //     If true: throw to monkey 7
             //     If false: throw to monkey 4
-            Monkey::new(
-                [66, 71, 94],
-                Box::new(|old| old * 5),
-                Box::new(|value| if value % 3 == 0 { 7 } else { 4 }),
-            ),
+            Monkey::new([66, 71, 94], Box::new(|old| old * 5), 3, 7, 4),
             // Monkey 1:
             //   Starting items: 70
             //   Operation: new = old + 6
             //   Test: divisible by 17
             //     If true: throw to monkey 3
             //     If false: throw to monkey 0
-            Monkey::new(
-                [70],
-                Box::new(|old| old + 6),
-                Box::new(|value| if value % 17 == 0 { 3 } else { 0 }),
-            ),
+            Monkey::new([70], Box::new(|old| old + 6), 17, 3, 0),
             // Monkey 2:
             //   Starting items: 62, 68, 56, 65, 94, 78
             //   Operation: new = old + 5
             //   Test: divisible by 2
             //     If true: throw to monkey 3
             //     If false: throw to monkey 1
-            Monkey::new(
-                [62, 68, 56, 65, 94, 78],
-                Box::new(|old| old + 5),
-                Box::new(|value| if value % 2 == 0 { 3 } else { 1 }),
-            ),
+            Monkey::new([62, 68, 56, 65, 94, 78], Box::new(|old| old + 5), 2, 3, 1),
             // Monkey 3:
             //   Starting items: 89, 94, 94, 67
             //   Operation: new = old + 2
             //   Test: divisible by 19
             //     If true: throw to monkey 7
             //     If false: throw to monkey 0
-            Monkey::new(
-                [89, 94, 94, 67],
-                Box::new(|old| old + 2),
-                Box::new(|value| if value % 19 == 0 { 7 } else { 0 }),
-            ),
+            Monkey::new([89, 94, 94, 67], Box::new(|old| old + 2), 19, 7, 0),
             // Monkey 4:
             //   Starting items: 71, 61, 73, 65, 98, 98, 63
             //   Operation: new = old * 7
@@ -135,7 +117,9 @@ impl State {
             Monkey::new(
                 [71, 61, 73, 65, 98, 98, 63],
                 Box::new(|old| old * 7),
-                Box::new(|value| if value % 11 == 0 { 5 } else { 6 }),
+                11,
+                5,
+                6,
             ),
             // Monkey 5:
             //   Starting items: 55, 62, 68, 61, 60
@@ -143,11 +127,7 @@ impl State {
             //   Test: divisible by 5
             //     If true: throw to monkey 2
             //     If false: throw to monkey 1
-            Monkey::new(
-                [55, 62, 68, 61, 60],
-                Box::new(|old| old + 7),
-                Box::new(|value| if value % 5 == 0 { 2 } else { 1 }),
-            ),
+            Monkey::new([55, 62, 68, 61, 60], Box::new(|old| old + 7), 5, 2, 1),
             // Monkey 6:
             //   Starting items: 93, 91, 69, 64, 72, 89, 50, 71
             //   Operation: new = old + 1
@@ -157,7 +137,9 @@ impl State {
             Monkey::new(
                 [93, 91, 69, 64, 72, 89, 50, 71],
                 Box::new(|old| old + 1),
-                Box::new(|value| if value % 13 == 0 { 5 } else { 2 }),
+                13,
+                5,
+                2,
             ),
             // Monkey 7:
             //   Starting items: 76, 50
@@ -165,13 +147,13 @@ impl State {
             //   Test: divisible by 7
             //     If true: throw to monkey 4
             //     If false: throw to monkey 6
-            Monkey::new(
-                [76, 50],
-                Box::new(|old| old * old),
-                Box::new(|value| if value % 7 == 0 { 4 } else { 6 }),
-            ),
+            Monkey::new([76, 50], Box::new(|old| old * old), 7, 4, 6),
         ];
-        State { monkeys }
+        let divisor_product = monkeys.iter().map(|m| m.divisor).product();
+        State {
+            monkeys,
+            divisor_product,
+        }
     }
 
     fn do_round(&mut self, do_div_by_three: bool) {
@@ -185,7 +167,15 @@ impl State {
                     if do_div_by_three {
                         item /= 3;
                     }
-                    (item, (monkey.test)(item))
+                    // GCD would be more efficient, but I was lazy.
+                    item %= self.divisor_product;
+                    let to_monkey = if item % monkey.divisor == 0 {
+                        monkey.monkey_if_true
+                    } else {
+                        monkey.monkey_if_false
+                    };
+
+                    (item, to_monkey)
                 };
                 self.monkeys[to_monkey].items.push_back(new_item);
             }
@@ -211,19 +201,19 @@ fn main() {
         dbg!(monkey_business);
     }
     // Part 2:
-    // {
-    //     let mut state = State::build_input();
-    //     for _ in 0..20 {
-    //         state.do_round(false);
-    //     }
-    //     let monkey_business: usize = state
-    //         .monkeys
-    //         .iter()
-    //         .map(|monkey| monkey.inspect_count)
-    //         .sorted()
-    //         .rev()
-    //         .take(2)
-    //         .product();
-    //     dbg!(monkey_business);
-    // }
+    {
+        let mut state = State::build_input();
+        for _ in 0..10000 {
+            state.do_round(false);
+        }
+        let monkey_business: usize = state
+            .monkeys
+            .iter()
+            .map(|monkey| monkey.inspect_count)
+            .sorted()
+            .rev()
+            .take(2)
+            .product();
+        dbg!(monkey_business);
+    }
 }
