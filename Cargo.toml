@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+itertools = "0.10.5"
 lazy_static = "1.4.0"
 regex = "1.7.0"
 
@@ -46,3 +47,7 @@ path = "src/day9.rs"
 [[bin]]
 name = "day10"
 path = "src/day10.rs"
+
+[[bin]]
+name = "day11"
+path = "src/day11.rs"
