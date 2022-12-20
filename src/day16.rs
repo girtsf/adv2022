@@ -1,6 +1,6 @@
 mod lib;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, mem::swap};
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -163,7 +163,11 @@ impl StateUnion {
         }
     }
 
-    fn maybe_update_state(&mut self, state: State, pressure: usize) {
+    fn maybe_update_state(&mut self, mut state: State, pressure: usize, use_elephant: bool) {
+        if use_elephant && state.elephant_location > state.location {
+            swap(&mut state.elephant_location, &mut state.location);
+        }
+
         let v = self.pressure_by_state.entry(state).or_insert(0);
         *v = (*v).max(pressure);
     }
@@ -211,7 +215,7 @@ impl StateUnion {
             }
 
             new_states.into_iter().for_each(|new_state| {
-                next.maybe_update_state(new_state, new_pressure);
+                next.maybe_update_state(new_state, new_pressure, use_elephant);
             });
         }
         next
