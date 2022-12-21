@@ -109,16 +109,16 @@ impl State {
     fn do_jet_move(&mut self) {
         // Figure out which direction the wind blows.
         let move_dx = self.get_next_move_dx();
-        println!("move_dx: {}", &move_dx);
+        // println!("move_dx: {}", &move_dx);
         // Can we move the piece in that direction?
         // Would the piece be out of bounds?
         if move_dx < 0 && self.piece_pos.x == 0 {
-            println!("can't move left - wall");
+            // println!("can't move left - wall");
             return;
         }
         let piece = self.cur_piece();
         if move_dx > 0 && (self.piece_pos.x + piece.width) >= CHAMBER_WIDTH {
-            println!("can't move right - wall");
+            // println!("can't move right - wall");
             return;
         }
         // Would the piece crash into anything?
@@ -127,10 +127,10 @@ impl State {
             ..self.piece_pos
         };
         if self.can_fit(&new_piece_pos) {
-            println!("moving {}", move_dx);
+            // println!("moving {}", move_dx);
             self.piece_pos = new_piece_pos;
         } else {
-            println!("can't move {} because of overlap", move_dx);
+            // println!("can't move {} because of overlap", move_dx);
         }
     }
 
@@ -149,12 +149,12 @@ impl State {
             self.come_to_rest();
             return;
         }
-        println!("moving down");
+        // println!("moving down");
         self.piece_pos = new_piece_pos;
     }
 
     fn come_to_rest(&mut self) {
-        println!("come_to_rest");
+        // println!("come_to_rest");
         // "Cement" the piece in the piece.
         let piece = &self.pieces[self.piece_idx];
         for y in 0..piece.height {
@@ -212,6 +212,24 @@ impl State {
         }
         println!("      +-------+");
     }
+
+    // fn is_row_full(&self, y: usize) -> bool {
+    //     self.chamber[y].iter().all(|x| *x)
+    // }
+
+    fn find_period(&self) -> Option<usize> {
+        let max_y = self.tower_height - 1;
+        // The limit of 5000 is slight cheeze as I knew what part 2 period was at this point.
+        'outer: for period in 5..5000 {
+            for y in 0..period {
+                if self.chamber[max_y - y] != self.chamber[max_y - y - period] {
+                    continue 'outer;
+                }
+            }
+            return Some(period);
+        }
+        None
+    }
 }
 
 fn main() {
@@ -225,10 +243,61 @@ fn main() {
     let input = lib::read_input();
     let mut state = State::new(pieces, &input);
     state.draw();
+
+    // Part 1:
     while state.piece_count < 2023 {
         state.do_move();
-        // state.draw();
     }
     state.draw();
     dbg!(state.tower_height);
+
+    // Part 2: keep going until we have at least 15K height, and then until we can find a period
+    // starting from the tower_height. There's probably some smarter way of doing this, but this
+    // allowed me to not reason about trying to match not-filled-in top part.
+    while state.tower_height < 15000 {
+        state.do_move();
+    }
+    state.draw();
+    while state.find_period().is_none() {
+        state.do_move();
+    }
+    state.draw();
+    let period = state.find_period().unwrap();
+    dbg!(&state.tower_height, period);
+
+    // Now count how many rocks it takes to do this one period.
+    let tower_height_start = state.tower_height;
+    let target_height = state.tower_height + period;
+    let pieces_start = state.piece_count;
+    dbg!(&tower_height_start, &target_height, &pieces_start);
+    while state.tower_height < target_height || state.find_period().is_none() {
+        state.do_move();
+    }
+    assert_eq!(state.tower_height, target_height);
+    state.draw();
+    dbg!(&state.piece_count, state.tower_height);
+    let pieces_delta = state.piece_count - pieces_start;
+    dbg!(&pieces_delta);
+
+    // Now calculate how many periods we can skip simulating.
+    let goal_pieces = 1000000000000usize;
+    let pieces_left = goal_pieces - state.piece_count;
+    let period_count = pieces_left / pieces_delta;
+    let extra_height = period_count * period;
+    // dbg!(&extra_height);
+    // dbg!(extra_height + state.tower_height);
+
+    state.draw();
+
+    state.piece_count += pieces_delta * period_count;
+
+    // Have to drop a few more to round to goal.
+    while state.piece_count <= goal_pieces {
+        state.do_move();
+    }
+
+    state.draw();
+
+    // Part 2 answer:
+    dbg!(extra_height + state.tower_height);
 }
