@@ -16,13 +16,13 @@ const SIDES: [Pos3; 6] = [
     (0, 0, 1),
 ];
 
-fn part1(cubes: &Voxels) -> usize {
+fn count_sides_if(cubes: &Voxels, predicate: impl Fn(Pos3) -> bool) -> usize {
     cubes
         .iter()
         .map(|&(x, y, z)| {
             SIDES
                 .iter()
-                .filter(|(dx, dy, dz)| !cubes.contains(&(x + dx, y + dy, z + dz)))
+                .filter(|(dx, dy, dz)| predicate((x + dx, y + dy, z + dz)))
                 .count()
         })
         .sum::<usize>()
@@ -69,20 +69,13 @@ fn find_outside(cubes: &Voxels) -> Voxels {
     outside
 }
 
+fn part1(cubes: &Voxels) -> usize {
+    count_sides_if(cubes, |pos| !cubes.contains(&pos))
+}
+
 fn part2(cubes: &Voxels) -> usize {
     let outside = find_outside(&cubes);
-    cubes
-        .iter()
-        .map(|&(x, y, z)| {
-            SIDES
-                .iter()
-                .filter(|(dx, dy, dz)| {
-                    let new_pos = (x + dx, y + dy, z + dz);
-                    !cubes.contains(&new_pos) && outside.contains(&new_pos)
-                })
-                .count()
-        })
-        .sum::<usize>()
+    count_sides_if(cubes, |pos| !cubes.contains(&pos) && outside.contains(&pos))
 }
 
 fn main() {
