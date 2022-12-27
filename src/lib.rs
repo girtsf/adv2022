@@ -13,3 +13,13 @@ impl std::ops::Add for Pos {
         Pos(self.0 + rhs.0, self.1 + rhs.1)
     }
 }
+
+pub trait Between {
+    fn between(&self, from: &Self, to: &Self) -> bool;
+}
+
+impl Between for isize {
+    fn between(&self, from: &Self, to: &Self) -> bool {
+        self >= from && self < to
+    }
+}

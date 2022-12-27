@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use adv2022::read_input;
+use adv2022::{read_input, Between};
+use ansi_term::{Color, Style};
 
 // (y, x), top left corner is (0, 0)
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -13,6 +14,11 @@ impl std::ops::Add for Pos {
         Pos(self.0 + rhs.0, self.1 + rhs.1)
     }
 }
+
+const RIGHT: usize = 0;
+const DOWN: usize = 1;
+const LEFT: usize = 2;
+const UP: usize = 3;
 
 const FACINGS: [Pos; 4] = [
     Pos(0, 1),  // 0: right
@@ -31,7 +37,11 @@ struct Map {
     max_x: BoundMap,
     min_y: BoundMap,
     max_y: BoundMap,
+    width: usize,
+    height: usize,
 }
+
+type WrappingFun = fn(&Map, &Pos, usize) -> (Pos, usize);
 
 impl Map {
     fn parse(input: &str) -> Map {
@@ -65,12 +75,16 @@ impl Map {
                     .or_insert(y as isize);
             }
         }
+        let height = *max_x.keys().max().unwrap() as usize + 1;
+        let width = *max_y.keys().max().unwrap() as usize + 1;
         Map {
             tiles,
             min_x,
             max_x,
             min_y,
             max_y,
+            height,
+            width,
         }
     }
 }
@@ -111,14 +125,14 @@ impl Path {
 }
 
 #[derive(Debug)]
-struct State {
-    map: Map,
+struct State<'a> {
+    map: &'a Map,
     pos: Pos,
     facing: usize, // 0..3 in FACINGS array
 }
 
-impl State {
-    fn new(map: Map) -> State {
+impl State<'_> {
+    fn new(map: &Map) -> State {
         // "You begin the path in the leftmost open tile of the top row of tiles."
         let pos = map
             .tiles
@@ -132,35 +146,157 @@ impl State {
         State {
             map,
             pos,
-            facing: 0,
+            facing: RIGHT,
         }
     }
 
-    fn follow_path(&mut self, path: &Path) {
+    fn part1_wrapping(map: &Map, pos: &Pos, facing: usize) -> (Pos, usize) {
+        let next_pos = *pos + FACINGS[facing];
+        (
+            match facing {
+                0 => Pos(next_pos.0, *map.min_x.get(&next_pos.0).unwrap()),
+                1 => Pos(*map.min_y.get(&next_pos.1).unwrap(), next_pos.1),
+                2 => Pos(next_pos.0, *map.max_x.get(&next_pos.0).unwrap()),
+                3 => Pos(*map.max_y.get(&next_pos.1).unwrap(), next_pos.1),
+                _ => panic!("invalid facing"),
+            },
+            facing,
+        )
+    }
+
+    // CHEEZE ALERT: mapping is specific to my input, which looks like this:
+    //   AB
+    //   C
+    //  DE
+    //  F
+    fn part2_wrapping(_map: &Map, pos: &Pos, facing: usize) -> (Pos, usize) {
+        let next_pos = *pos + FACINGS[facing];
+        // let side_size = map.max_x.get(&0).unwrap() - map.min_x.get(&0).unwrap() + 1;
+        // dbg!(&side_size);
+
+        // exit top of A: (-1, 50) .. (-1, 100) -> left of F
+        if next_pos.0 == -1 && next_pos.1.between(&50, &100) {
+            assert_eq!(facing, UP);
+            return (Pos(150 + (next_pos.1 - 50), 0), RIGHT);
+        }
+        // exit left of F: (150, -1) .. (200, -1) -> top of A
+        if next_pos.1 == -1 && next_pos.0.between(&150, &200) {
+            assert_eq!(facing, LEFT);
+            return (Pos(0, 50 + (next_pos.0 - 150)), DOWN);
+        }
+        // exit left of D: (100, -1) .. (150, -1) -> left of A (rev)
+        if next_pos.1 == -1 && next_pos.0.between(&100, &150) {
+            assert_eq!(facing, LEFT);
+            return (Pos(49 - (next_pos.0 - 100), 50), RIGHT);
+        }
+        // exit left of A: (0, 49) .. (50, 49) -> left of D (rev)
+        if next_pos.1 == 49 && next_pos.0.between(&0, &50) {
+            assert_eq!(facing, LEFT);
+            return (Pos(149 - next_pos.0, 0), RIGHT);
+        }
+        // exit right of F: (150, 50) .. (200, 50) -> bottom of E
+        if facing == RIGHT && next_pos.1 == 50 && next_pos.0.between(&150, &200) {
+            assert_eq!(facing, RIGHT);
+            return (Pos(149, 50 + (next_pos.0 - 150)), UP);
+        }
+        // exit bottom of E: (150, 50) .. (150, 100) -> right of F
+        if facing == DOWN && next_pos.0 == 150 && next_pos.1.between(&50, &100) {
+            assert_eq!(facing, DOWN);
+            return (Pos(150 + (next_pos.1 - 50), 49), LEFT);
+        }
+        // exit bottom of F: (200, 0) .. (200, 50) -> top of B
+        if next_pos.0 == 200 && next_pos.1.between(&0, &50) {
+            assert_eq!(facing, DOWN);
+            return (Pos(0, 100 + next_pos.1), DOWN);
+        }
+        // exit top of B: (-1, 100) .. (-1, 150) -> bottom of F
+        if next_pos.0 == -1 && next_pos.1.between(&100, &150) {
+            assert_eq!(facing, UP);
+            return (Pos(199, next_pos.1 - 100), UP);
+        }
+        // exit right of B: (0, 150) .. (50, 150) -> right of E (rev)
+        if next_pos.1 == 150 && next_pos.0.between(&0, &50) {
+            assert_eq!(facing, RIGHT);
+            return (Pos(149 - next_pos.0, 99), LEFT);
+        }
+        // exit right of E: (100, 100) .. (150, 100) -> right of B (rev)
+        if next_pos.1 == 100 && next_pos.0.between(&100, &150) {
+            assert_eq!(facing, RIGHT);
+            return (Pos(49 - (next_pos.0 - 100), 149), LEFT);
+        }
+        // exit left of C: (50, 49) .. (100, 49) -> top of D
+        if facing == LEFT && next_pos.1 == 49 && next_pos.0.between(&50, &100) {
+            assert_eq!(facing, LEFT);
+            return (Pos(100, next_pos.0 - 50), DOWN);
+        }
+        // exit top of D: (99, 0) .. (99, 50) -> left of C (rec)
+        if facing == UP && next_pos.0 == 99 && next_pos.1.between(&0, &50) {
+            assert_eq!(facing, UP);
+            return (Pos(50 + next_pos.1, 50), RIGHT);
+        }
+        // exit right of C: (50, 100) .. (100, 100) -> bottom of B
+        if facing == RIGHT && next_pos.1 == 100 && next_pos.0.between(&50, &100) {
+            assert_eq!(facing, RIGHT);
+            return (Pos(49, 100 + (next_pos.0 - 50)), UP);
+        }
+        // exit bottom of B: (50, 100) .. (50, 150) -> right of C
+        if facing == DOWN && next_pos.0 == 50 && next_pos.1.between(&100, &150) {
+            assert_eq!(facing, DOWN);
+            return (Pos(50 + (next_pos.1 - 100), 99), LEFT);
+        }
+
+        panic!("not implemented for {:?}", next_pos);
+    }
+
+    fn follow_path(&mut self, path: &Path, wrapping_fn: WrappingFun) {
         for cmd in path.0.iter() {
-            dbg!(self.pos, self.facing, &cmd);
+            // dbg!(self.pos, self.facing, &cmd);
             match cmd {
                 Cmd::Move(count) => {
-                    for i in 0..*count {
-                        dbg!(self.pos, &i);
+                    for _ in 0..*count {
+                        // dbg!(self.pos, &i);
+                        // let mut draw = false;
                         let mut next_pos = self.pos + FACINGS[self.facing];
+                        let mut next_facing = self.facing;
                         if !self.map.tiles.contains_key(&next_pos) {
-                            // Wrapping.
-                            next_pos = match self.facing {
-                                0 => Pos(next_pos.0, *self.map.min_x.get(&next_pos.0).unwrap()),
-                                1 => Pos(*self.map.min_y.get(&next_pos.1).unwrap(), next_pos.1),
-                                2 => Pos(next_pos.0, *self.map.max_x.get(&next_pos.0).unwrap()),
-                                3 => Pos(*self.map.max_y.get(&next_pos.1).unwrap(), next_pos.1),
-                                _ => panic!("invalid facing"),
+                            // println!("======================================================");
+                            // println!(
+                            //     "from pos={:?} facing={:?} via={:?}",
+                            //     &self.pos, &self.facing, &next_pos);
+                            // draw = true;
+                            // self.draw();
+                            (next_pos, next_facing) =
+                                wrapping_fn(&self.map, &self.pos, self.facing);
+                            if !self.map.tiles.contains_key(&next_pos) {
+                                panic!("wrapping fun wrong: {:?}", &next_pos);
                             }
+                            // println!(
+                            //     "to next_pos={:?} to facing={:?}",
+                            //     &next_pos, &next_facing
+                            // );
                         }
 
                         match self.map.tiles.get(&next_pos).unwrap() {
                             '#' => {
+                                // if draw {
+                                //     println!(
+                                //         "=============[ wall ]================================="
+                                //     );
+                                // }
                                 break;
                             }
                             '.' => {
                                 self.pos = next_pos;
+                                self.facing = next_facing;
+                                // if draw {
+                                //     println!(
+                                //         "=============[ moved ]================================="
+                                //     );
+                                //     self.draw();
+                                //     println!(
+                                //     "=============[ moving done ]================================="
+                                // );
+                                // }
                             }
                             _ => {
                                 panic!("invalid map char");
@@ -181,15 +317,46 @@ impl State {
     fn final_password(&self) -> isize {
         (self.pos.0 + 1) * 1000 + (self.pos.1 + 1) * 4 + self.facing as isize
     }
+
+    fn draw(&self) {
+        for y in 0..self.map.height {
+            for x in 0..self.map.width {
+                let pos = Pos(y as isize, x as isize);
+                if self.pos == pos {
+                    let c = ['>', 'v', '<', '^'][self.facing];
+                    print!(
+                        "{}",
+                        Color::Black.on(Color::Red).paint(String::from_iter([c]))
+                    );
+                } else {
+                    let c = self.map.tiles.get(&pos).cloned().unwrap_or(' ');
+                    print!("{}", c);
+                }
+            }
+            println!();
+        }
+    }
 }
 
 fn main() {
     let input = read_input();
     let (map_input, path_input) = input.split_once("\n\n").unwrap();
-    let mut state = State::new(Map::parse(map_input));
     let path = Path::parse(path_input);
-    dbg!(&state, &path);
-    state.follow_path(&path);
-    dbg!(&state);
-    dbg!(&state.final_password());
+    let map = Map::parse(map_input);
+    {
+        // Part 1:
+        let mut state = State::new(&map);
+        state.follow_path(&path, State::part1_wrapping);
+        // dbg!(&state);
+        let part1 = state.final_password();
+        dbg!(&part1);
+    }
+    {
+        // Part 2:
+        let mut state = State::new(&map);
+        state.follow_path(&path, State::part2_wrapping);
+        // dbg!(&state);
+        let part2 = state.final_password();
+        dbg!(&part2);
+    }
 }
